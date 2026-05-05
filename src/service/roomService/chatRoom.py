@@ -31,7 +31,7 @@ class ChatRoom:
     def __init__(self, team: GtTeam, room: GtRoom):
         self.gt_room: GtRoom = room
         self.gt_team: GtTeam = team
-        self._store = RoomMessageStore(room.agent_ids, gt_room=room)
+        self._store = RoomMessageStore(gt_room=room)
         self._scheduler = RoomScheduler(
             agent_ids=room.agent_ids,
             room_key=self.key,

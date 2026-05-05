@@ -15,12 +15,15 @@ from constants import MessageBusTopic
 class RoomMessageStore:
     """管理房间内存消息列表、各 Agent 已读进度、DB 持久化与 WS 事件广播。"""
 
-    def __init__(self, agent_ids: List[int], *, gt_room: GtRoom):
+    def __init__(self, *, gt_room: GtRoom):
         self._messages: List[GtCoreRoomMessage] = []
         self._agent_seq_read: Dict[int, int] = {}  # agent_id -> 下一个待读的 seq（不含）
-        self._agent_ids: List[int] = agent_ids
         self._next_seq: int = 0
         self._gt_room: GtRoom = gt_room
+
+    @property
+    def _agent_ids(self) -> List[int]:
+        return self._gt_room.agent_ids
 
     @property
     def messages(self) -> List[GtCoreRoomMessage]:
