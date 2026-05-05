@@ -90,9 +90,7 @@ class RoomScheduler:
 
         self._go_next_turn()
         await self.persist_state()
-        if self._is_stop_condition_met():
-            self._transition_to_idle_on_stop()
-            self.publish_status()
+        if self._stop_if_done():
             return True
         next_id = self._advance_to_next_dispatchable()
         if next_id is not None:
@@ -132,8 +130,7 @@ class RoomScheduler:
             self._round_skipped_set = set()
             self.current_turn_has_content = False
             self._state = RoomState.SCHEDULING
-            if self._is_stop_condition_met():
-                self._transition_to_idle_on_stop()
+            if self._stop_if_done():
                 return None
             result = self._advance_to_next_dispatchable()
         else:
@@ -166,9 +163,8 @@ class RoomScheduler:
         while True:
             agent_id = self.get_current_turn_agent_id()
 
-            if self._auto_skip_operator():
-                if self._is_stop_condition_met():
-                    self._transition_to_idle_on_stop()
+            if self._skip_operator_if():
+                if self._stop_if_done():
                     return None
                 continue
 
@@ -181,7 +177,7 @@ class RoomScheduler:
 
             return agent_id
 
-    def _auto_skip_operator(self) -> bool:
+    def _skip_operator_if(self) -> bool:
         """GROUP 房间（>2人）中自动跳过 OPERATOR，返回是否跳过了。"""
         agent_id = self.get_current_turn_agent_id()
         if agent_id == self.OPERATOR_MEMBER_ID and self._gt_room.type == RoomType.GROUP and len(self._gt_room.agent_ids) > 2:
@@ -191,21 +187,24 @@ class RoomScheduler:
             return True
         return False
 
-    def _is_stop_condition_met(self) -> bool:
-        if self._gt_room.max_turns > 0 and self._turn_count >= self._gt_room.max_turns:
-            return True
-        ai_agent_ids = {aid for aid in self._gt_room.agent_ids if aid != self.OPERATOR_MEMBER_ID}
-        return bool(ai_agent_ids) and ai_agent_ids.issubset(self._round_skipped_set)
-
-    def _transition_to_idle_on_stop(self) -> None:
+    def _stop_if_done(self) -> bool:
+        """检查停止条件，满足则进入 IDLE 并发布，返回 True。"""
         if self._state == RoomState.IDLE:
-            return
-        self._state = RoomState.IDLE
+            return True
+
         if self._gt_room.max_turns > 0 and self._turn_count >= self._gt_room.max_turns:
-            logger.info("房间 %s 已达到最大轮次 %d，进入 IDLE 状态", self._key, self._gt_room.max_turns)
+            reason = f"已达到最大轮次 {self._gt_room.max_turns}"
         else:
-            logger.info("房间 %s 所有 AI 成员均已跳过发言，停止调度", self._key)
+            ai_ids = {aid for aid in self._gt_room.agent_ids if aid != self.OPERATOR_MEMBER_ID}
+            if ai_ids and ai_ids.issubset(self._round_skipped_set):
+                reason = "所有 AI 成员均已跳过发言"
+            else:
+                return False
+
+        self._state = RoomState.IDLE
+        logger.info("房间 %s %s，停止调度", self._key, reason)
         self.publish_status(current_turn_agent_id=None)
+        return True
 
     # ─── 外部动作 ───────────────────────────────────────────
 
