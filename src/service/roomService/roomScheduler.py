@@ -85,9 +85,6 @@ class RoomScheduler:
             self._round_skipped_set.add(self.get_current_turn_agent_id())
         self.current_turn_has_content = False
 
-        if not self._gt_room.agent_ids:
-            return True
-
         self._go_next_turn()
         await self.persist_state()
         if self._stop_if_done():
@@ -157,9 +154,6 @@ class RoomScheduler:
     def _advance_to_next_dispatchable(self) -> Optional[int]:
         """从当前发言位向前推进，跳过不可调度的成员（如 GROUP 中的 OPERATOR）。
         遇到 SpecialAgent 等待输入时返回 None。"""
-        if not self._gt_room.agent_ids:
-            return None
-
         while True:
             agent_id = self.get_current_turn_agent_id()
 
