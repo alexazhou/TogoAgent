@@ -23,23 +23,28 @@ _logger = logging.getLogger(__name__)
 # ── 全局状态 ───────────────────────────────────────────────────────────────
 
 _tray_icon: pystray.Icon | None = None
-_web_url: str = "http://localhost:8080"
 _tray_menu: TrayMenu | None = None
 _backend_thread: threading.Thread | None = None
+
+
+def _get_web_url() -> str:
+    """点击菜单时使用后端当前配置生成 Web 入口地址。"""
+    try:
+        app_config = configUtil.get_app_config()
+        return f"http://localhost:{app_config.setting.bind_port}"
+    except Exception:
+        _logger.error("读取 Web 地址配置失败，回退到默认地址", exc_info=True)
+        return "http://localhost:8080"
 
 # ── 后端线程 ───────────────────────────────────────────────────────────────
 
 def _run_backend() -> None:
-    global _web_url
-
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     # 加载配置
     app_config = configUtil.load()
-    bind_host = app_config.setting.bind_host
     bind_port = app_config.setting.bind_port
-    _web_url = f"http://localhost:{bind_port}"
 
     # 配置加载后重建菜单，应用正确的语言设置
     if _tray_icon is not None and _tray_menu is not None:
@@ -124,7 +129,7 @@ def build_tray_icon() -> pystray.Icon:
     global _tray_menu
 
     # 创建菜单管理器
-    _tray_menu = TrayMenu(tray_icon=None, web_url=_web_url, on_quit=_on_quit, on_reset=_on_reset)
+    _tray_menu = TrayMenu(tray_icon=None, get_web_url=_get_web_url, on_quit=_on_quit, on_reset=_on_reset)
     _tray_menu.set_version(__version__)
 
     icon = pystray.Icon(

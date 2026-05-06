@@ -22,19 +22,19 @@ class TrayMenu:
     def __init__(
         self,
         tray_icon: pystray.Icon | None,
-        web_url: str,
+        get_web_url: Callable[[], str],
         on_quit: Callable[[pystray.Icon], None],
         on_reset: Callable[[], bool] | None = None,
     ):
         """
         Args:
             tray_icon: pystray Icon 实例，用于更新菜单
-            web_url: Web 界面地址
+            get_web_url: 获取 Web 界面地址
             on_quit: 退出回调，用于停止后端和托盘
             on_reset: 重置数据回调，负责停止后端并等待关闭完成，返回 True 表示成功关闭
         """
         self._icon = tray_icon
-        self._web_url = web_url
+        self._get_web_url = get_web_url
         self._on_quit = on_quit
         self._on_reset = on_reset
         self._status_key: str = ""
@@ -63,7 +63,7 @@ class TrayMenu:
 
     def _cb_open_web(self, icon, item) -> None:
         """打开 Web 界面。"""
-        webbrowser.open(self._web_url, new=0)
+        webbrowser.open(self._get_web_url(), new=0)
 
     def _cb_open_config_dir(self, icon, item) -> None:
         """打开配置目录。"""
