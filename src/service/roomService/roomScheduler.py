@@ -133,11 +133,12 @@ class RoomScheduler:
         if self._state != RoomState.SCHEDULING:
             logger.info("检测到房间 %s 的活动 (agent=%s)，重置轮次计数器并唤醒房间",
                         self._key, gtAgentManager.get_agent_name(sender_id))
-            self._last_speaker_id = None
+            self._last_speaker_id = sender_id if sender_id != self.OPERATOR_MEMBER_ID else None
             self._round_count = 0
             self._current_round_skipped_set = set()
             self.current_turn_has_content = False
             self._state = RoomState.SCHEDULING
+            self._current_speaker_index = None
             return self._advance_to_first_dispatchable()
 
         current_id = self.get_current_turn_agent_id()
@@ -161,8 +162,16 @@ class RoomScheduler:
         self.current_turn_has_content = False
 
     def _should_skip(self) -> bool:
-        """当前发言人是否应被自动跳过并继续推进（Operator 始终跳过）。"""
-        return self.get_current_turn_agent_id() == self.OPERATOR_MEMBER_ID
+        """当前发言人是否应被自动跳过并继续推进。
+        - OPERATOR 始终跳过
+        - 与上一位发言人相同时跳过（避免同一人连续发言，含唤醒者在首位的情况）
+        """
+        current = self.get_current_turn_agent_id()
+        if current == self.OPERATOR_MEMBER_ID:
+            return True
+        if self._last_speaker_id is not None and current == self._last_speaker_id:
+            return True
+        return False
 
     def _should_stop(self) -> bool:
         """当前是否已达到停止调度的条件。"""
