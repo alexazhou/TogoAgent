@@ -87,7 +87,51 @@ gh release view v0.1.12
 - `TogoSpace-0.1.12-macos-arm64.zip` (CI 构建)
 - `TogoSpace-0.1.12-macos-x86_64.zip` (本地构建)
 
-## 6. 完整流程示例
+## 6. 补充 Release Note
+
+Release 创建并确认产物齐全后，应补充 GitHub Release Note。
+
+示例：
+
+```bash
+# 查看当前 Release 正文
+gh release view v0.1.12
+
+# 使用本地 markdown 文件更新 Release Note
+gh release edit v0.1.12 --notes-file /tmp/v0.1.12-release-notes.md
+```
+
+建议格式：
+
+- 中文在前，英文在后。
+- 中英文内容分别成段，不要混写在同一条 bullet 里。
+- 中英文之间使用 Markdown 默认横线分隔：`---`
+- 每种语言控制在 5 条以内，只写本次发布最重要的变更。
+- 最后一行保留 `Full Changelog` 链接，指向前一个版本到当前版本的 compare 页面。
+
+建议写法示例：
+
+```md
+- 修复 A 问题。
+- 优化 B 行为。
+
+---
+
+- Fixed issue A.
+- Improved behavior B.
+
+**Full Changelog**: https://github.com/alexazhou/TogoSpace/compare/v0.1.11...v0.1.12
+```
+
+Release Note 注意事项：
+
+- 不要照抄 commit 列表。应提炼用户真正感知到的变化，而不是按提交时间流水账罗列。
+- 不要写未发布到该 tag 的内容。必须以目标 tag 实际包含的代码和产物为准。
+- 涉及内置二进制、前端子模块、桌面包、Docker 镜像等内容时，先核对实际版本和是否发布成功，再写进正文。
+- 如果某项工作流失败但后来重跑成功，应以最终发布结果为准，不要把中间失败过程写进 Release Note。
+- 如需补写旧版本 Release Note，也应按对应版本区间对比，例如 `v0.1.11...v0.1.12`。
+
+## 7. 完整流程示例
 
 ```bash
 # 1. 更新版本号
@@ -112,6 +156,9 @@ gh release upload v0.1.12 dist/TogoSpace-0.1.12-macos-x86_64.zip
 
 # 6. 验证
 gh release view v0.1.12
+
+# 7. 补充 Release Note
+gh release edit v0.1.12 --notes-file /tmp/v0.1.12-release-notes.md
 ```
 
 ## 附录
