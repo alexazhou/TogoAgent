@@ -28,11 +28,13 @@ from service.funcToolService.tools import (
     delete_role_template,
     get_role_template,
     list_role_templates,
+    save_agent,
     save_role_template,
     wake_up_agent,
     send_chat_msg,
     finish_chat_turn,
 )
+from service.roomService import ToolCallContext
 from ...base import ServiceTestCase
 
 TEAM = "test_team"
@@ -52,6 +54,7 @@ class TestRoleTemplateToolMetadata(ServiceTestCase):
         assert {
             "list_role_templates",
             "get_role_template",
+            "save_agent",
             "save_role_template",
             "delete_role_template",
         } <= {t.function.name for t in get_tools()}
@@ -61,12 +64,14 @@ class TestRoleTemplateToolMetadata(ServiceTestCase):
         tools = build_tools([
             FuncTool("list_role_templates", list_role_templates),
             FuncTool("get_role_template", get_role_template),
+            FuncTool("save_agent", save_agent),
             FuncTool("save_role_template", save_role_template),
             FuncTool("delete_role_template", delete_role_template),
         ])
         assert {tool.function.name for tool in tools} == {
             "list_role_templates",
             "get_role_template",
+            "save_agent",
             "save_role_template",
             "delete_role_template",
         }
@@ -78,8 +83,10 @@ class TestRoleTemplateToolMetadata(ServiceTestCase):
             registry.register(t, lambda x, y: None)
         
         list_tool = registry.get_registered_tool("list_role_templates")
+        save_agent_tool = registry.get_registered_tool("save_agent")
         save_tool = registry.get_registered_tool("save_role_template")
         assert list_tool.category == ToolCategory.ADMIN
+        assert save_agent_tool.category == ToolCategory.ADMIN
         assert save_tool.category == ToolCategory.ADMIN
 
     async def test_all_local_tools_define_category(self) -> None:
@@ -130,8 +137,10 @@ class TestRoleTemplateToolMetadata(ServiceTestCase):
         )
 
         assert "get_time" in read_tools
+        assert "save_agent" not in read_tools
         assert "save_role_template" not in read_tools
         # root leader 自动补齐 admin 分类
+        assert "save_agent" in root_tools
         assert "save_role_template" in root_tools
 
 
@@ -189,12 +198,14 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="search_writer",
             type="USER",
             soul="draft documentation",
-            i18n={"display_name": {"zh-CN": "专业写手", "en": "Pro Writer"}}
+            i18n={"display_name": {"zh-CN": "专业写手", "en": "Pro Writer"}},
+            overwrite_existing=True,
         )
         await save_role_template(
             name="search_coder",
             type="USER",
             soul="write python code",
+            overwrite_existing=True,
         )
 
         # 2. 搜索名称
@@ -241,7 +252,7 @@ class TestRoleTemplateTools(ServiceTestCase):
         assert len(res["role_templates"]) == 0
 
     async def test_save_role_template_creates_and_updates(self) -> None:
-        """save_role_template 应按名称执行全字段 upsert。"""
+        """save_role_template 应在 overwrite_existing=true 时覆盖同名模板。"""
         create_result = await save_role_template(
             name="writer",
             type="USER",
@@ -255,6 +266,7 @@ class TestRoleTemplateTools(ServiceTestCase):
             soul="draft docs carefully",
             model="gpt-4.1",
             i18n={"display_name": {"zh-CN": "高级写手", "en": "Senior Writer"}},
+            overwrite_existing=True,
         )
 
         assert create_result["success"]
@@ -267,6 +279,23 @@ class TestRoleTemplateTools(ServiceTestCase):
         assert detail.soul == "draft docs carefully"
         assert detail.model == "gpt-4.1"
         assert detail.i18n["display_name"]["zh-CN"] == "高级写手"
+
+    async def test_save_role_template_rejects_existing_without_overwrite(self) -> None:
+        """同名模板默认不覆盖，需显式打开 overwrite_existing。"""
+        await save_role_template(
+            name="writer_no_overwrite",
+            type="USER",
+            soul="draft docs",
+        )
+
+        result = await save_role_template(
+            name="writer_no_overwrite",
+            type="USER",
+            soul="updated",
+        )
+
+        assert not result["success"]
+        assert "overwrite_existing" in result["message"]
 
     async def test_save_role_template_rejects_invalid_type(self) -> None:
         """非法 type 应被工具层拒绝。"""
@@ -297,12 +326,126 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="built_in_system_template",
             type="SYSTEM",
             soul="updated",
+            overwrite_existing=True,
         )
 
         assert not create_result["success"]
         assert "不允许通过工具创建" in create_result["message"]
         assert not update_result["success"]
         assert "不允许通过工具修改" in update_result["message"]
+
+    async def test_save_agent_creates_and_updates(self) -> None:
+        """save_agent 应在当前 team 中创建成员，并在 overwrite_existing=true 时更新。"""
+        await gtRoleTemplateManager.save_role_template(
+            GtRoleTemplate(
+                name="agent_writer",
+                soul="draft docs",
+                model="gpt-4o-mini",
+                type=RoleTemplateType.USER,
+            )
+        )
+        ctx = ToolCallContext(agent_id=1, team_id=self.team_id, chat_room=None)
+
+        create_result = await save_agent(
+            name="charlie",
+            role_template_name="agent_writer",
+            model="gpt-4.1-mini",
+            driver="native",
+            allow_tools=["Category:Read", "list_dir"],
+            i18n={"display_name": {"zh-CN": "查理", "en": "Charlie"}},
+            _context=ctx,
+        )
+        update_result = await save_agent(
+            name="charlie",
+            role_template_name="agent_writer",
+            model="gpt-4.1",
+            driver="claude_sdk",
+            allow_tools=["Category:Read"],
+            i18n={"display_name": {"zh-CN": "高级查理", "en": "Senior Charlie"}},
+            overwrite_existing=True,
+            _context=ctx,
+        )
+
+        assert create_result["success"]
+        assert "已创建成员 charlie" in create_result["message"]
+        assert update_result["success"]
+        assert "已更新成员 charlie" in update_result["message"]
+        detail = await gtAgentManager.get_agent(self.team_id, "charlie")
+        assert detail is not None
+        assert detail.role_template_id == create_result["agent"]["role_template_id"]
+        assert detail.model == "gpt-4.1"
+        assert detail.driver.value == "claude_sdk"
+        assert detail.allow_tools == ["Category:Read"]
+        assert detail.i18n["display_name"]["zh-CN"] == "高级查理"
+
+    async def test_save_agent_rejects_existing_without_overwrite(self) -> None:
+        """同名成员默认不覆盖，需显式打开 overwrite_existing。"""
+        await gtRoleTemplateManager.save_role_template(
+            GtRoleTemplate(
+                name="agent_no_overwrite_template",
+                soul="draft docs",
+                type=RoleTemplateType.USER,
+            )
+        )
+        ctx = ToolCallContext(agent_id=1, team_id=self.team_id, chat_room=None)
+
+        first = await save_agent(
+            name="delta",
+            role_template_name="agent_no_overwrite_template",
+            _context=ctx,
+        )
+        second = await save_agent(
+            name="delta",
+            role_template_name="agent_no_overwrite_template",
+            _context=ctx,
+        )
+
+        assert first["success"]
+        assert not second["success"]
+        assert "overwrite_existing" in second["message"]
+
+    async def test_save_agent_rejects_invalid_inputs(self) -> None:
+        """save_agent 应拒绝非法模板、非法 driver、非法工具权限和保留成员名。"""
+        await gtRoleTemplateManager.save_role_template(
+            GtRoleTemplate(
+                name="agent_invalid_template",
+                soul="draft docs",
+                type=RoleTemplateType.USER,
+            )
+        )
+        ctx = ToolCallContext(agent_id=1, team_id=self.team_id, chat_room=None)
+
+        missing_template = await save_agent(
+            name="echo",
+            role_template_name="missing_template",
+            _context=ctx,
+        )
+        invalid_driver = await save_agent(
+            name="foxtrot",
+            role_template_name="agent_invalid_template",
+            driver="invalid_driver",
+            _context=ctx,
+        )
+        invalid_allow_tools = await save_agent(
+            name="golf",
+            role_template_name="agent_invalid_template",
+            allow_tools=["Category:Admin"],
+            _context=ctx,
+        )
+        special_agent = await save_agent(
+            name="OPERATOR",
+            role_template_name="agent_invalid_template",
+            _context=ctx,
+        )
+
+        assert not missing_template["success"]
+        assert "未找到角色模板" in missing_template["message"]
+        assert not invalid_driver["success"]
+        assert "driver 只允许" in invalid_driver["message"]
+        assert not invalid_allow_tools["success"]
+        assert "管理员类别权限" in invalid_allow_tools["message"]
+        assert not special_agent["success"]
+        assert "保留成员" in special_agent["message"]
 
     async def test_delete_role_template_supports_missing_unused_and_in_use(self) -> None:
         """删除角色模板时应分别处理不存在、未引用、被引用三种情况。"""

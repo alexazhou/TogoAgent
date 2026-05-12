@@ -4,13 +4,14 @@ import datetime
 import logging
 from zoneinfo import ZoneInfo
 
-from constants import AgentStatus, RoleTemplateType, RoomState, SpecialAgent
+from constants import AgentStatus, DriverType, RoleTemplateType, RoomState, SpecialAgent
 from dal.db import gtAgentManager, gtRoomManager, gtRoleTemplateManager
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtDept import GtDept
 from model.dbModel.gtRoleTemplate import GtRoleTemplate
 from service.roomService import ToolCallContext
 import service.roomService as roomService
+from service.agentService.toolRegistry import validate_tool_allow_specs
 from util import configUtil, i18nUtil
 
 logger = logging.getLogger(__name__)
@@ -317,6 +318,7 @@ async def save_role_template(
     soul: str,
     model: str | None = None,
     i18n: dict | None = None,
+    overwrite_existing: bool = False,
     _context: ToolCallContext = None,
 ) -> dict:
     """创建或更新角色模板。若指定的 name 不存在则新建（必须设为 USER 类型），若已存在则更新该模板（注意：SYSTEM 类型的内置模板不可通过此工具修改）。
@@ -327,6 +329,7 @@ async def save_role_template(
         soul: 角色模板的核心提示词。应包含角色的身份定位、职责边界和行为准则，是 Agent 运行的"灵魂"。该内容会作为核心指令注入到对应角色的 System Prompt 中。
         model: 可选模型覆盖。一般建议保持留空（None），此时将使用 Agent 默认配置的模型。仅在确需强制该角色使用特定模型时设置。
         i18n: 可选多语言数据。示例：{"display_name": {"zh-CN": "高级写手", "en": "Senior Writer"}}
+        overwrite_existing: 是否允许覆盖同名模板。默认 false；为 true 时，若同名模板已存在则执行更新。
     """
     from service import roleTemplateService
 
@@ -343,6 +346,11 @@ async def save_role_template(
         return {"success": False, "message": "SYSTEM 角色模板不允许通过工具创建。"}
     if existing is not None and existing.type == RoleTemplateType.SYSTEM:
         return {"success": False, "message": f"SYSTEM 角色模板 {normalized_name} 不允许通过工具修改。"}
+    if existing is not None and overwrite_existing is False:
+        return {
+            "success": False,
+            "message": f"角色模板 {normalized_name} 已存在；如需覆盖请将 overwrite_existing 设为 true。",
+        }
 
     saved = await roleTemplateService.save_role_template(
         GtRoleTemplate(
@@ -358,6 +366,88 @@ async def save_role_template(
         "success": True,
         "message": f"已{action}角色模板 {normalized_name}。",
         "role_template": saved.to_json(),
+    }
+
+
+async def save_agent(
+    name: str,
+    role_template_name: str,
+    model: str | None = None,
+    driver: str = DriverType.TSP.value,
+    allow_tools: list[str] | None = None,
+    i18n: dict | None = None,
+    overwrite_existing: bool = False,
+    _context: ToolCallContext = None,
+) -> dict:
+    """在当前团队中创建或更新成员。
+
+    Args:
+        name: 成员名称。作为当前团队内的稳定标识符，建议使用英文小写字母和下划线。
+        role_template_name: 要绑定的角色模板名称。工具会按名称解析为 role_template_id。
+        model: 可选模型覆盖。留空（None）表示不覆盖模板/系统默认模型。
+        driver: 驱动类型。可选值为 native、claude_sdk、tsp。无特别需要（如操作者明确指定）时建议省略，默认使用 tsp。
+        allow_tools: 可见工具列表。支持具体工具名（如 "read_file"）或类别语法（如 "Category:Read"）。系统会自动合并类别和具体工具名。基础协作工具（Basic 类别）默认总是开启，无需显式包含。通常情况下此列表留空即可，系统会自动授予 Admin 以外的所有常规类别权限。
+                     可用类别：Read, Write, Execute, Admin。注意：Admin 类别属于团队管理功能，严禁分配给除团队根主管以外的普通成员。
+        i18n: 可选多语言数据。示例：{"display_name": {"zh-CN": "Alice", "en": "Alice"}}
+        overwrite_existing: 是否允许覆盖当前团队中已存在的同名成员。默认 false；为 true 时，若同名成员已存在则执行更新。
+    """
+    ok, team_id = _require_team_context(_context)
+    if not ok:
+        return {"success": False, "message": "当前没有可用的团队上下文。"}
+
+    normalized_name = name.strip()
+    if not normalized_name:
+        return {"success": False, "message": "成员名称不能为空。"}
+
+    special_agent = SpecialAgent.value_of(normalized_name)
+    if special_agent is not None:
+        return {"success": False, "message": f"保留成员 {special_agent.name} 不允许通过工具创建或修改。"}
+
+    normalized_role_template_name = role_template_name.strip()
+    if not normalized_role_template_name:
+        return {"success": False, "message": "角色模板名称不能为空。"}
+
+    driver_type = DriverType.value_of(driver)
+    if driver_type is None:
+        return {"success": False, "message": "成员 driver 只允许 native、claude_sdk 或 tsp。"}
+
+    error_msg = validate_tool_allow_specs(allow_tools or [])
+    if error_msg is not None:
+        return {"success": False, "message": error_msg}
+
+    role_template = await gtRoleTemplateManager.get_role_template_by_name(normalized_role_template_name)
+    if role_template is None:
+        return {"success": False, "message": f"未找到角色模板: {normalized_role_template_name}"}
+
+    existing = await gtAgentManager.get_agent(team_id, normalized_name)
+    if existing is not None and existing.team_id == -1:
+        return {"success": False, "message": f"保留成员 {normalized_name} 不允许通过工具创建或修改。"}
+    if existing is not None and overwrite_existing is False:
+        return {
+            "success": False,
+            "message": f"成员 {normalized_name} 已存在；如需覆盖请将 overwrite_existing 设为 true。",
+        }
+
+    agent = existing or GtAgent(team_id=team_id, name=normalized_name)
+    agent.role_template_id = role_template.id
+    agent.model = model or ""
+    agent.driver = driver_type
+    agent.allow_tools = allow_tools
+    agent.i18n = i18n or {}
+
+    await gtAgentManager.batch_save_agents(team_id, [agent])
+    saved = await gtAgentManager.get_agent(team_id, normalized_name)
+    if saved is None:
+        return {"success": False, "message": f"成员保存失败: {normalized_name}"}
+
+    action = "更新" if existing is not None else "创建"
+    payload = saved.to_json()
+    payload["driver"] = saved.driver.value
+    payload["role_template_name"] = role_template.name
+    return {
+        "success": True,
+        "message": f"已{action}成员 {normalized_name}。配置已保存到当前团队。",
+        "agent": payload,
     }
 
 

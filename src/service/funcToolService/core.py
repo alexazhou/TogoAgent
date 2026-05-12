@@ -16,6 +16,7 @@ from .tools import (
     get_room_info,
     get_time,
     list_role_templates,
+    save_agent,
     save_role_template,
     send_chat_msg,
     wake_up_agent,
@@ -44,6 +45,7 @@ def load_func_tools() -> dict[str, FuncTool]:
         "wake_up_agent": wake_up_agent,
         "list_role_templates": list_role_templates,
         "get_role_template": get_role_template,
+        "save_agent": save_agent,
         "save_role_template": save_role_template,
         "delete_role_template": delete_role_template,
     }
