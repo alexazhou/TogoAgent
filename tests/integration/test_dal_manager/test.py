@@ -61,7 +61,6 @@ class TestDalManagers(ServiceTestCase):
         model: str | None,
         soul: str = "",
         template_type: RoleTemplateType = RoleTemplateType.SYSTEM,
-        allowed_tools: list[str] | None = None,
     ) -> GtRoleTemplate:
         return await gtRoleTemplateManager.save_role_template(
             GtRoleTemplate(
@@ -69,7 +68,6 @@ class TestDalManagers(ServiceTestCase):
                 model=model,
                 soul=soul,
                 type=template_type,
-                allowed_tools=allowed_tools,
             )
         )
 
@@ -89,27 +87,22 @@ class TestDalManagers(ServiceTestCase):
         saved_1 = await self._save_role_template(
             "alice",
             "glm-4.7",
-            allowed_tools=["Read"],
         )
         assert saved_1.name == "alice"
         assert saved_1.model == "glm-4.7"
         assert saved_1.type == RoleTemplateType.SYSTEM
-        assert saved_1.allowed_tools == ["Read"]
 
         saved_2 = await self._save_role_template(
             "alice",
             "gpt-4o",
-            allowed_tools=["list_dir"],
         )
         assert saved_2.id == saved_1.id
         assert saved_2.model == "gpt-4o"
-        assert saved_2.allowed_tools == ["list_dir"]
 
         row = await gtRoleTemplateManager.get_role_template_by_name("alice")
         assert row is not None
         assert row.model == "gpt-4o"
         assert row.type == RoleTemplateType.SYSTEM
-        assert row.allowed_tools == ["list_dir"]
 
     async def test_role_template_table_has_model_column(self):
         await self._reset_tables()
@@ -120,7 +113,7 @@ class TestDalManagers(ServiceTestCase):
         assert "model" in col_names
         assert "name" in col_names
         assert "type" in col_names
-        assert "allowed_tools" in col_names
+        assert "allowed_tools" not in col_names
 
     # ------------------------------------------------------------------
     # gtTeamManager

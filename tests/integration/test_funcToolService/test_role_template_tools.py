@@ -46,11 +46,6 @@ class TestRoleTemplateToolMetadata(ServiceTestCase):
         """Optional[list[str]] 应映射为 array。"""
         assert python_type_to_json_schema(Optional[list[str]]) == {"type": "array"}
 
-    async def test_save_role_template_uses_array_schema_for_allowed_tools(self) -> None:
-        """save_role_template 的 allowed_tools 参数应暴露为 array。"""
-        props = get_function_metadata("save_role_template", save_role_template)["parameters"]["properties"]
-        assert props["allowed_tools"]["type"] == "array"
-
     async def test_role_template_tools_registered(self) -> None:
         """role template 管理工具应加入注册表。"""
         load_func_tools()
@@ -172,7 +167,6 @@ class TestRoleTemplateTools(ServiceTestCase):
                 model="gpt-4o",
                 soul="plan carefully",
                 type=RoleTemplateType.USER,
-                allowed_tools=["get_time"],
                 i18n={"display_name": {"zh-CN": "规划师", "en": "Planner"}},
             )
         )
@@ -195,14 +189,12 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="search_writer",
             type="USER",
             soul="draft documentation",
-            allowed_tools=[],
             i18n={"display_name": {"zh-CN": "专业写手", "en": "Pro Writer"}}
         )
         await save_role_template(
             name="search_coder",
             type="USER",
             soul="write python code",
-            allowed_tools=[],
         )
 
         # 2. 搜索名称
@@ -254,7 +246,6 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="writer",
             type="USER",
             soul="draft docs",
-            allowed_tools=["get_time"],
             model="gpt-4o-mini",
             i18n={"display_name": {"zh-CN": "写手", "en": "Writer"}},
         )
@@ -262,7 +253,6 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="writer",
             type="SYSTEM",
             soul="draft docs carefully",
-            allowed_tools=["get_time", "get_room_info"],
             model="gpt-4.1",
             i18n={"display_name": {"zh-CN": "高级写手", "en": "Senior Writer"}},
         )
@@ -275,31 +265,8 @@ class TestRoleTemplateTools(ServiceTestCase):
         assert detail is not None
         assert detail.type == RoleTemplateType.SYSTEM
         assert detail.soul == "draft docs carefully"
-        assert detail.allowed_tools == ["get_time", "get_room_info"]
         assert detail.model == "gpt-4.1"
         assert detail.i18n["display_name"]["zh-CN"] == "高级写手"
-
-    async def test_save_role_template_rejects_admin_tools(self) -> None:
-        """save_role_template 应拒绝包含管理员工具或类别的配置。"""
-        # 1. 拒绝 Category:Admin
-        result_cat = await save_role_template(
-            name="hacker",
-            type="USER",
-            soul="try to get admin",
-            allowed_tools=["Category:Admin"],
-        )
-        assert result_cat["success"] is False
-        assert "不允许分配管理员类别权限" in result_cat["message"]
-
-        # 2. 拒绝具体的 ADMIN 工具
-        result_tool = await save_role_template(
-            name="hacker2",
-            type="USER",
-            soul="try to get admin tool",
-            allowed_tools=["save_role_template"],
-        )
-        assert result_tool["success"] is False
-        assert "不允许分配管理员工具权限" in result_tool["message"]
 
     async def test_save_role_template_rejects_invalid_type(self) -> None:
         """非法 type 应被工具层拒绝。"""
@@ -307,7 +274,6 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="invalid_type_template",
             type="ADMIN",
             soul="noop",
-            allowed_tools=[],
         )
 
         assert not result["success"]
@@ -319,7 +285,6 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="system_created_by_tool",
             type="SYSTEM",
             soul="noop",
-            allowed_tools=[],
         )
         await gtRoleTemplateManager.save_role_template(
             GtRoleTemplate(
@@ -332,7 +297,6 @@ class TestRoleTemplateTools(ServiceTestCase):
             name="built_in_system_template",
             type="SYSTEM",
             soul="updated",
-            allowed_tools=[],
         )
 
         assert not create_result["success"]

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from constants import DriverType, AgentStatus, AgentTaskStatus, SpecialAgent
 from controller.baseController import BaseHandler
 from dal.db import gtTeamManager, gtAgentManager, gtRoleTemplateManager, gtAgentTaskManager
+from service.agentService.toolRegistry import validate_tool_allow_specs
 from model.dbModel.gtAgent import GtAgent
 from service import teamService, agentService
 from util import assertUtil
@@ -17,6 +18,7 @@ class AgentSaveItem(BaseModel):
     role_template_id: int
     model: str = ""
     driver: DriverType = DriverType.NATIVE
+    allow_tools: list[str] | None = None
 
 
 class AgentsSaveRequest(BaseModel):
@@ -100,6 +102,10 @@ class TeamAgentsSaveHandler(BaseHandler):
             error_code="duplicate_agent_name",
         )
 
+        for item in request.agents:
+            error_msg = validate_tool_allow_specs(item.allow_tools or [])
+            assertUtil.assertEqual(error_msg, None, error_message=error_msg or "", error_code="invalid_tool_allow_specs")
+
         _tpl_ids = list({a.role_template_id for a in request.agents})
         _fetched = await gtRoleTemplateManager.get_role_templates_by_ids(_tpl_ids)
         assertUtil.assertEqual(len(_fetched), len(_tpl_ids), error_message="部分角色模板不存在", error_code="role_template_not_found")
@@ -113,6 +119,7 @@ class TeamAgentsSaveHandler(BaseHandler):
                     role_template_id=item.role_template_id,
                     model=item.model,
                     driver=item.driver,
+                    allow_tools=item.allow_tools,
                 )
                 for item in request.agents
             ],

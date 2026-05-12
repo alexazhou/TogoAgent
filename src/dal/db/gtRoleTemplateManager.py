@@ -87,7 +87,6 @@ async def save_role_template(template: GtRoleTemplate) -> GtRoleTemplate:
             model=template.model,
             soul=template.soul,
             type=template.type,
-            allowed_tools=template.allowed_tools,
             i18n=template.i18n or {},
         )
         .on_conflict(
@@ -96,7 +95,6 @@ async def save_role_template(template: GtRoleTemplate) -> GtRoleTemplate:
                 GtRoleTemplate.model: template.model,
                 GtRoleTemplate.soul: template.soul,
                 GtRoleTemplate.type: template.type,
-                GtRoleTemplate.allowed_tools: template.allowed_tools,
                 GtRoleTemplate.i18n: template.i18n or {},
             },
         )

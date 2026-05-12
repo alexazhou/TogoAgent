@@ -12,7 +12,6 @@ class GtRoleTemplate(DbModelBase):
     model: str | None = peewee.CharField(null=True)
     soul: str = peewee.TextField(default="")
     type: RoleTemplateType = EnumField(RoleTemplateType, default=RoleTemplateType.SYSTEM)
-    allowed_tools: list[str] | None = JsonField(null=True)
     i18n: dict = JsonField(default=dict)  # 多语言数据，含 display_name
 
     @property

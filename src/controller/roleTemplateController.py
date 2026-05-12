@@ -11,7 +11,6 @@ class CreateRoleTemplateRequest(BaseModel):
     name: str
     soul: str = ""
     model: str | None = None
-    allowed_tools: list[str] | None = None
 
 
 class ModifyRoleTemplateRequest(BaseModel):
@@ -19,7 +18,6 @@ class ModifyRoleTemplateRequest(BaseModel):
     name: str
     soul: str = ""
     model: str | None = None
-    allowed_tools: list[str] | None = None
 
 
 class RoleTemplateListHandler(BaseHandler):
@@ -50,7 +48,6 @@ class RoleTemplateCreateHandler(BaseHandler):
                 model=request.model,
                 soul=request.soul,
                 type=RoleTemplateType.USER,
-                allowed_tools=request.allowed_tools,
             )
         )
 
@@ -100,7 +97,6 @@ class RoleTemplateModifyHandler(BaseHandler):
         definition.name = next_name
         definition.soul = request.soul
         definition.model = request.model
-        definition.allowed_tools = request.allowed_tools
 
         updated = await gtRoleTemplateManager.save_role_template(definition)
 

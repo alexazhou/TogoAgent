@@ -33,7 +33,6 @@ async def test_create_and_update_role_template():
         name="test_role_pm",
         type=RoleTemplateType.USER,
         soul="你是一个测试角色",
-        allowed_tools=["get_time", "send_chat_msg"],
         model=None,
         i18n={"display_name": {"zh-CN": "测试项目经理"}},
     )
@@ -41,15 +40,12 @@ async def test_create_and_update_role_template():
     assert saved.id is not None
     assert saved.name == "test_role_pm"
     assert saved.soul == "你是一个测试角色"
-    assert saved.allowed_tools == ["get_time", "send_chat_msg"]
 
     # 修改（全字段更新）
     saved.soul = "更新后的测试角色，验证工具功能。"
-    saved.allowed_tools = ["get_time", "send_chat_msg", "finish_chat_turn"]
     saved.i18n = {"display_name": {"zh-CN": "测试项目经理(已修改)"}}
     updated = await gtRoleTemplateManager.save_role_template(saved)
     assert updated.soul == "更新后的测试角色，验证工具功能。"
-    assert updated.allowed_tools == ["get_time", "send_chat_msg", "finish_chat_turn"]
     assert updated.i18n == {"display_name": {"zh-CN": "测试项目经理(已修改)"}}
 
 

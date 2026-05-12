@@ -58,7 +58,7 @@ class TestRoleTemplateController(_ApiServiceCase):
         assert "soul" in detail
         assert "type" in detail
         assert "driver" not in detail
-        assert "allowed_tools" in detail
+        assert "allowed_tools" not in detail
 
     async def test_create_role_template(self):
         """验证 POST /role_templates/create.json 创建用户模板。"""
@@ -96,7 +96,6 @@ class TestRoleTemplateController(_ApiServiceCase):
             "name": target_name,
             "soul": "更新后的 Soul",
             "model": "gpt-4.1-mini",
-            "allowed_tools": ["Read", "Edit"],
         }
 
         async with aiohttp.ClientSession() as client:
@@ -119,8 +118,6 @@ class TestRoleTemplateController(_ApiServiceCase):
         assert updated["name"] == target_name
         assert updated["soul"] == "更新后的 Soul"
         assert updated["model"] == "gpt-4.1-mini"
-        assert updated["allowed_tools"] == ["Read", "Edit"]
         assert detail["name"] == target_name
         assert detail["soul"] == "更新后的 Soul"
         assert detail["model"] == "gpt-4.1-mini"
-        assert detail["allowed_tools"] == ["Read", "Edit"]

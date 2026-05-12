@@ -81,6 +81,7 @@ class AgentConfig(BaseModel):
     role_template: str  # Name of the RoleTemplate to use in config import/export
     model: Optional[str] = None  # 覆盖 RoleTemplate.model
     driver: DriverType = DriverType.TSP
+    allow_tools: List[str] | None = None
 
 
 class TeamRoomConfig(BaseModel):
@@ -115,7 +116,6 @@ class RoleTemplateConfig(BaseModel):
     soul: str = ""
     prompt_file: str = ""
     model: Optional[str] = None
-    allowed_tools: List[str] | None = None
 
 
 class LlmServiceConfig(BaseModel):

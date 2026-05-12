@@ -126,7 +126,7 @@ async def _load_team_agents(team_id: int, workspace_root: str | None = None) -> 
                 "driver": gt_agent.driver,
             }
         )
-        driver_config.options["tool_allow_specs"] = gt_role_template.allowed_tools
+        driver_config.options["tool_allow_specs"] = gt_agent.allow_tools
         driver_config.options["is_root_leader"] = is_root_leader
         full_prompt = await build_agent_system_prompt(
             team_id=team_id,

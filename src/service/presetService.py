@@ -28,7 +28,6 @@ async def _import_role_templates_from_app_config() -> None:
             soul=template.soul,
             model=template.model,
             type=RoleTemplateType.SYSTEM,
-            allowed_tools=template.allowed_tools,
             i18n=template.i18n or {},
         ))
     db_templates = await gtRoleTemplateManager.get_all_role_templates()
@@ -136,6 +135,7 @@ async def _to_gt_agents(team_id: int, team_config: TeamConfig) -> list[GtAgent]:
             model=agent.model or "",
             driver=agent.driver,
             i18n=agent.i18n or {},
+            allow_tools=agent.allow_tools,
         ))
     return agents
 

@@ -16,6 +16,7 @@ class GtAgent(DbModelBase):
     driver: DriverType = EnumField(DriverType, default=DriverType.NATIVE)
     employee_number: int = peewee.IntegerField(default=0)
     i18n: dict = JsonField(default=dict)  # 多语言数据，含 display_name
+    allow_tools: list[str] | None = JsonField(null=True)
 
     @property
     def display_name(self) -> str:
