@@ -198,15 +198,17 @@ class ClaudeSdkAgentDriver(AgentDriver):
             tool_call_id = self._next_tool_call_id()
             await self.host._history.append_history_message(GtAgentHistory.build(
                 llmApiUtil.OpenAIMessage(
-                    role="assistant",
+                    role=OpenaiApiRole.ASSISTANT,
                     content=None,
+                    reasoning_content=None,
                     tool_calls=[
-                        {
-                            "id": tool_call_id,
-                            "type": "function",
-                            "function": {"name": tool_name, "arguments": json.dumps(args, ensure_ascii=False)},
-                        }
+                        llmApiUtil.OpenAIToolCall(
+                            id=tool_call_id,
+                            type="function",
+                            function={"name": tool_name, "arguments": json.dumps(args, ensure_ascii=False)},
+                        )
                     ],
+                    tool_call_id=None,
                 ),
                 status=AgentHistoryStatus.SUCCESS,
             ))

@@ -78,7 +78,7 @@ class TestRoomController(_ApiServiceCase):
         assert "team_name" in data
         assert len(data["messages"]) > 0
         msg = data["messages"][0]
-        assert "agent_id" in msg
+        assert "sender_id" in msg
         assert "content" in msg
         assert "send_time" in msg
 
@@ -110,7 +110,7 @@ class TestRoomController(_ApiServiceCase):
         messages = data["messages"]
         # Operator 的消息应被真正落库，而不仅仅返回 HTTP 成功。
         assert any(
-            m["agent_id"] == int(SpecialAgent.OPERATOR.value) and m["content"] == payload["content"]
+            m["sender_id"] == int(SpecialAgent.OPERATOR.value) and m["content"] == payload["content"]
             for m in messages
         )
 
@@ -257,7 +257,7 @@ class TestRoomControllerPrivate(_ApiServiceCase):
                 data = await resp.json()
                 messages = data["messages"]
                 assert messages[1]["content"] == payload["content"]
-                assert messages[1]["agent_id"] == int(SpecialAgent.OPERATOR.value)
+                assert messages[1]["sender_id"] == int(SpecialAgent.OPERATOR.value)
 
         max_wait = 15
         start_time = time.time()
@@ -271,11 +271,11 @@ class TestRoomControllerPrivate(_ApiServiceCase):
                     data = await resp.json()
                     messages = data["messages"]
                     # Agent 回复由调度异步触发，使用轮询等待可观测结果。
-                    if any(m["agent_id"] == alice_id for m in messages):
+                    if any(m["sender_id"] == alice_id for m in messages):
                         break
             await asyncio.sleep(0.1)
         else:
             pytest.fail("Agent Alice 未能在限时内回复 Operator")
 
-        alice_msg = next(m for m in messages if m["agent_id"] == alice_id)
+        alice_msg = next(m for m in messages if m["sender_id"] == alice_id)
         assert len(alice_msg["content"]) > 0
